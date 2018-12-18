@@ -29,7 +29,7 @@ VN_EXTERN_C_BEGIN
 Venom *VenomInit(void);
 void VenomPut(Venom *venom, const void *key, uint32_t keyLength, const void *value, uint32_t valueLength, uint8_t type);
 const void *VenomGet(Venom *venom, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type);
-
+void VenomRelease(Venom *venom);
 void VenomDebugPrint(Venom *venom);
 VN_EXTERN_C_END
 

@@ -228,3 +228,8 @@ void VenomDebugPrint(Venom *venom) {
         printf("%u: {hash: %u}\n",i,node.hash);
     }
 }
+
+
+void VenomRelease(Venom *venom) {
+    free(venom);
+}
