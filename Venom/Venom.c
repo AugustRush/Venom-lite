@@ -208,7 +208,7 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
             } else {
                 VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
                 VenomResetNode(rightNode + VN_SEGMENT_SIZE, hash, keyLength, valueLength, referenceOffset);
-                uint32_t copyCount = insertIndex - lastSegmentStart;
+                uint32_t copyCount = lastIndex - insertIndex + 1;
                 if (copyCount > 0) {
                     memcpy(venom->nodes + lastIndex + 2, venom->nodes + insertIndex, copyCount * VNNODE_SIZE);
                     VenomResetSegment(venom, insertIndex, copyCount);
