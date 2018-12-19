@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define VN_PAGE_SIZE 4096
-#define VN_SEGMENT_SIZE 5
+#define VN_SEGMENT_SIZE 4
 
 typedef int8_t byte;
 
@@ -39,7 +39,7 @@ struct Venom {
 const size_t VNNODE_SIZE = sizeof(VNNode);
 
 Venom *VenomInit(void) {
-    uint32_t size = 200 * VN_PAGE_SIZE;
+    uint32_t size = 400 * VN_PAGE_SIZE;
     Venom *venom = calloc(1, size);
     venom->fd = -1;
     venom->hash = XXH32("Valid_Venom_File", 16, 0);
@@ -47,7 +47,7 @@ Venom *VenomInit(void) {
     venom->count = 0;
     venom->removedCount = 0;
     venom->nodeStart = sizeof(Venom);
-    venom->dataStart = VN_PAGE_SIZE * 100;
+    venom->dataStart = VN_PAGE_SIZE * 200;
     venom->dataUsed = 0;
     venom->nodes = (VNNode *)((byte *)venom + venom->nodeStart);
     venom->data = (byte *)venom + venom->dataStart;
@@ -129,8 +129,8 @@ VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t k
             }
             
             if (result == NULL) {
-                uint32_t startIndex = flag * 5 + 1;
-                uint32_t lastIndex = flag * 5 + VN_SEGMENT_SIZE - 1;
+                uint32_t startIndex = flag * VN_SEGMENT_SIZE + 1;
+                uint32_t lastIndex = flag * VN_SEGMENT_SIZE + VN_SEGMENT_SIZE - 1;
                 for (uint32_t i = startIndex; i <= lastIndex; i++) {
                     VNNode *node = venom->nodes + i;
                     if (node->hash == hash) {
@@ -216,8 +216,8 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
                 printf("is equal , need to update\n");
                 result = midNode;
             } else {
-                uint32_t startIndex = flag * 5 + 1;
-                uint32_t lastIndex = flag * 5 + VN_SEGMENT_SIZE - 1;
+                uint32_t startIndex = flag * VN_SEGMENT_SIZE + 1;
+                uint32_t lastIndex = flag * VN_SEGMENT_SIZE + VN_SEGMENT_SIZE - 1;
                 uint32_t realIndex = startIndex;
                 uint32_t endIndex = lastIndex + 1;
                 for (uint32_t i = startIndex; i <= lastIndex; i++) {
