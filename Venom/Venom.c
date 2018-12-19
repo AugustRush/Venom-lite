@@ -193,14 +193,12 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
             while (right > left) {
                 if (midNode->hash > hash) {
                     if (right == flag) {
-//                        flag = right - 1;
                         break;
                     } else {
                         right = flag;
                     }
                 } else if (midNode->hash < hash) {
                     if (left == flag) {
-//                        flag = left + 1;
                         break;
                     } else {
                         left = flag;
@@ -262,25 +260,6 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
                         venom->count += 1;
                     }
                 }
-                
-//                VNNode *lastNode = venom->nodes + lastIndex;
-//                if (lastNode->keyLength > 0) {//是一个有效的node
-//                    memcpy(venom->nodes + venom->usedCount + VN_SEGMENT_SIZE, venom->nodes + venom->usedCount, VNNODE_SIZE);
-//                    VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
-//                    uint32_t moveCount = venom->usedCount - realIndex - 1;
-//                    if (moveCount > 0) {
-//                        memmove(venom->nodes + realIndex + 1, venom->nodes + realIndex, moveCount * VNNODE_SIZE);
-//                        VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
-//                    }
-//                    venom->count += 1;
-//                } else {
-//                    uint32_t moveCount = lastIndex- realIndex;
-//                    if (moveCount > 0) {
-//                        memmove(venom->nodes + realIndex + 1, venom->nodes + realIndex, moveCount * VNNODE_SIZE);
-//                        VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
-//                        venom->count += 1;
-//                    }
-//                }
             }
         }
     }
