@@ -30,7 +30,7 @@ struct Venom {
     uint32_t nodeStart;
     uint32_t dataStart;
     uint32_t dataUsed;
-    VNNode *sortedNodes;
+    VNNode *nodes;
     byte *data;
 };
 
@@ -47,7 +47,7 @@ Venom *VenomInit(void) {
     venom->nodeStart = sizeof(Venom);
     venom->dataStart = VN_PAGE_SIZE * 100;
     venom->dataUsed = 0;
-    venom->sortedNodes = (VNNode *)((byte *)venom + venom->nodeStart);
+    venom->nodes = (VNNode *)((byte *)venom + venom->nodeStart);
     venom->data = (byte *)venom + venom->dataStart;
     return venom;
 }
@@ -95,13 +95,13 @@ const void * VenomReadNodeData(Venom *venom, VNNode *node, const void *key, uint
 VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     VNNode *result = NULL;
     if (venom->count > 0) {
-        VNNode *leftNode = venom->sortedNodes;
-        VNNode *rightNode = venom->sortedNodes + venom->count - 1;
+        VNNode *leftNode = venom->nodes;
+        VNNode *rightNode = venom->nodes + venom->count - 1;
         if (leftNode->hash < hash && rightNode->hash > hash) {
             uint32_t left = 0;
             uint32_t right = venom->count - 1;
             uint32_t flag = (left + right) / 2;
-            VNNode *midNode = venom->sortedNodes + flag;
+            VNNode *midNode = venom->nodes + flag;
             while (right > left) {
                 if (midNode->hash > hash) {
                     if (right == flag) {
@@ -121,7 +121,7 @@ VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t k
                 }
                 
                 flag = (left + right) / 2;
-                midNode = venom->sortedNodes + flag;
+                midNode = venom->nodes + flag;
             }
         } else {
             if (leftNode->hash == hash) {
@@ -139,11 +139,11 @@ VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t k
 VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, uint32_t keyLength, uint32_t valueLength, uint32_t referenceOffset) {
     VNNode *result = NULL;
     if (venom->count == 0) {
-        VenomResetNode(venom->sortedNodes, hash, keyLength, valueLength, referenceOffset);
+        VenomResetNode(venom->nodes, hash, keyLength, valueLength, referenceOffset);
         VenomUpdateNodeCount(venom, 1);
     } else {
-        VNNode *leftNode = venom->sortedNodes;
-        VNNode *rightNode = venom->sortedNodes + venom->count - 1;
+        VNNode *leftNode = venom->nodes;
+        VNNode *rightNode = venom->nodes + venom->count - 1;
         if (leftNode->hash > hash) {
             memmove(leftNode + 1, leftNode, venom->count * VNNODE_SIZE);
             VenomResetNode(leftNode, hash, keyLength, valueLength, referenceOffset);
@@ -156,7 +156,7 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
             uint32_t right = venom->count - 1;
             uint32_t flag = right / 2;
             int isExsit = 0;
-            VNNode *midNode = venom->sortedNodes + flag;
+            VNNode *midNode = venom->nodes + flag;
             while (right > left) {
                 if (midNode->hash > hash) {
                     if (right == flag) {
@@ -178,7 +178,7 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
                 }
                 
                 flag = (left + right) / 2;
-                midNode = venom->sortedNodes + flag;
+                midNode = venom->nodes + flag;
             }
             
             if (isExsit) {
@@ -187,8 +187,8 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
             } else {
                 uint32_t moveCount = venom->count - flag;
                 if (moveCount > 0) {
-                    memmove(venom->sortedNodes + flag + 1, venom->sortedNodes + flag, moveCount * VNNODE_SIZE);
-                    VenomResetNode(venom->sortedNodes + flag, hash, keyLength, valueLength, referenceOffset);
+                    memmove(venom->nodes + flag + 1, venom->nodes + flag, moveCount * VNNODE_SIZE);
+                    VenomResetNode(venom->nodes + flag, hash, keyLength, valueLength, referenceOffset);
                     VenomUpdateNodeCount(venom, 1);
                 }
             }
@@ -224,7 +224,7 @@ const void *VenomGet(Venom *venom, const void *key, uint32_t keyLength, uint32_t
 
 void VenomDebugPrint(Venom *venom) {
     for (uint32_t i = 0; i < venom->count; i++) {
-        VNNode node = venom->sortedNodes[i];
+        VNNode node = venom->nodes[i];
         printf("%u: {hash: %u}\n",i,node.hash);
     }
 }
