@@ -11,7 +11,8 @@
 #include <string.h>
 
 #define VN_PAGE_SIZE 4096
-#define VN_SEGMENT_SIZE 4
+#define VN_SEGMENT_SIZE 5
+#define VN_NEW_SEG_FACTOR 10000
 
 typedef int8_t byte;
 
@@ -39,7 +40,7 @@ struct Venom {
 const size_t VNNODE_SIZE = sizeof(VNNode);
 
 Venom *VenomInit(void) {
-    uint32_t size = 400 * VN_PAGE_SIZE;
+    uint32_t size = 800 * VN_PAGE_SIZE;
     Venom *venom = calloc(1, size);
     venom->fd = -1;
     venom->hash = XXH32("Valid_Venom_File", 16, 0);
@@ -47,7 +48,7 @@ Venom *VenomInit(void) {
     venom->count = 0;
     venom->removedCount = 0;
     venom->nodeStart = sizeof(Venom);
-    venom->dataStart = VN_PAGE_SIZE * 200;
+    venom->dataStart = VN_PAGE_SIZE * 400;
     venom->dataUsed = 0;
     venom->nodes = (VNNode *)((byte *)venom + venom->nodeStart);
     venom->data = (byte *)venom + venom->dataStart;
@@ -94,6 +95,17 @@ const void * VenomReadNodeData(Venom *venom, VNNode *node, const void *key, uint
     return NULL;
 }
 
+VNNode *VenomFindNode(Venom *venom, uint32_t hash, uint32_t start, uint32_t end) {
+    VNNode *result = NULL;
+    for (uint32_t i = start; i <= end; i++) {
+        VNNode *node = venom->nodes + i;
+        if (node->hash == hash) {
+            result = node;
+        }
+    }
+    return result;
+}
+
 VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t keyLength, uint32_t *valueLength, uint8_t *type) {
     VNNode *result = NULL;
     if (venom->count > 0) {
@@ -131,19 +143,14 @@ VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t k
             if (result == NULL) {
                 uint32_t startIndex = flag * VN_SEGMENT_SIZE + 1;
                 uint32_t lastIndex = flag * VN_SEGMENT_SIZE + VN_SEGMENT_SIZE - 1;
-                for (uint32_t i = startIndex; i <= lastIndex; i++) {
-                    VNNode *node = venom->nodes + i;
-                    if (node->hash == hash) {
-                        result = node;
-                    }
-                }
+                result = VenomFindNode(venom, hash, startIndex, lastIndex);
             }
             
         } else {
             if (leftNode->hash == hash) {
                 result = leftNode;
-            } else if (rightNode->hash == hash) {
-                result = rightNode;
+            } else {
+                result = VenomFindNode(venom, hash, venom->usedCount - VN_SEGMENT_SIZE, venom->usedCount - 1);
             }
         }
     }
@@ -151,8 +158,8 @@ VNNode *VenomSearchNode(Venom *venom, uint32_t hash, const void *key, uint32_t k
     return result;
 }
 
-void VenomResetSegment(Venom *venom, uint32_t start) {
-    for (uint32_t i = start; i < start + VN_SEGMENT_SIZE; i++) {
+void VenomResetSegment(Venom *venom, uint32_t start, uint32_t length) {
+    for (uint32_t i = start; i < start + length; i++) {
         VNNode *node = venom->nodes + i;
         if (node->keyLength > 0) {
             node->keyLength = 0;
@@ -172,18 +179,42 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
         venom->count += 1;
     } else {
         VNNode *leftNode = venom->nodes;
-        VNNode *rightNode = venom->nodes + venom->usedCount - VN_SEGMENT_SIZE;
+        uint32_t lastSegmentStart = venom->usedCount - VN_SEGMENT_SIZE;
+        VNNode *rightNode = venom->nodes + lastSegmentStart;
         if (leftNode->hash > hash) {
             uint32_t usedCount = venom->usedCount;
             VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
             memmove(leftNode + VN_SEGMENT_SIZE, leftNode, usedCount * VNNODE_SIZE);
-            VenomResetSegment(venom, 0);
+            VenomResetSegment(venom, 0, VN_SEGMENT_SIZE);
             VenomResetNode(leftNode, hash, keyLength, valueLength, referenceOffset);
             venom->count += 1;
         } else if (rightNode->hash < hash) {
-            VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
-            VenomResetNode(rightNode + VN_SEGMENT_SIZE, hash, keyLength, valueLength, referenceOffset);
-            venom->count += 1;
+            uint32_t insertIndex = lastSegmentStart + 1;
+            uint32_t lastIndex = lastSegmentStart + VN_SEGMENT_SIZE - 1;
+            for (uint32_t i = insertIndex; i <= lastIndex; i++) {
+                VNNode *node = venom->nodes + i;
+                if (node->keyLength == 0) {
+                    break;
+                }
+                if (node->hash < hash) {
+                    insertIndex += 1;
+                }
+            }
+            
+            if (insertIndex > lastIndex) {
+                VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
+                VenomResetNode(rightNode + VN_SEGMENT_SIZE, hash, keyLength, valueLength, referenceOffset);
+                venom->count += 1;
+            } else {
+                VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
+                VenomResetNode(rightNode + VN_SEGMENT_SIZE, hash, keyLength, valueLength, referenceOffset);
+                uint32_t copyCount = insertIndex - lastSegmentStart;
+                if (copyCount > 0) {
+                    memcpy(venom->nodes + lastIndex + 2, venom->nodes + insertIndex, copyCount * VNNODE_SIZE);
+                    VenomResetSegment(venom, insertIndex, copyCount);
+                }
+                venom->count += 1;
+            }
         } else {
             uint32_t left = 0;
             uint32_t right = venom->usedCount / VN_SEGMENT_SIZE - 1;
@@ -235,21 +266,29 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
                     uint32_t usedCount = venom->usedCount;
                     VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
                     memmove(venom->nodes + realIndex + VN_SEGMENT_SIZE, venom->nodes + realIndex, (usedCount - realIndex) * VNNODE_SIZE);
-                    VenomResetSegment(venom, realIndex);
+                    VenomResetSegment(venom, realIndex, VN_SEGMENT_SIZE);
                     VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
                     venom->count += 1;
                 } else {
                     if (endIndex > lastIndex) { //full
-                        uint32_t usedCount = venom->usedCount;
-                        VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
-                        memmove(venom->nodes + endIndex + VN_SEGMENT_SIZE, venom->nodes + endIndex, (usedCount - endIndex) * VNNODE_SIZE);
-                        VenomResetSegment(venom, endIndex);
-                        memcpy(venom->nodes + endIndex, venom->nodes + lastIndex, VNNODE_SIZE);
-                        uint32_t moveCount = lastIndex - realIndex;
-                        if (moveCount > 0) {
+                        uint32_t nextLastIndex = endIndex + VN_SEGMENT_SIZE - 1;
+                        VNNode *nextSegmentLast = venom->nodes + nextLastIndex;
+                        if (nextSegmentLast->keyLength > 0) {//是一个有效的node
+                            uint32_t usedCount = venom->usedCount;
+                            VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
+                            memmove(venom->nodes + endIndex + VN_SEGMENT_SIZE, venom->nodes + endIndex, (usedCount - endIndex) * VNNODE_SIZE);
+                            VenomResetSegment(venom, endIndex, VN_SEGMENT_SIZE);
+                            memcpy(venom->nodes + endIndex, venom->nodes + lastIndex, VNNODE_SIZE);
+                            uint32_t moveCount = lastIndex - realIndex;
+                            if (moveCount > 0) {
+                                memmove(venom->nodes + realIndex + 1, venom->nodes + realIndex, moveCount * VNNODE_SIZE);
+                            }
+                            VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
+                        } else {
+                            uint32_t moveCount = nextLastIndex - realIndex;
                             memmove(venom->nodes + realIndex + 1, venom->nodes + realIndex, moveCount * VNNODE_SIZE);
+                            VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
                         }
-                        VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
                         venom->count += 1;
                     } else {
                         uint32_t moveCount = endIndex - realIndex;
