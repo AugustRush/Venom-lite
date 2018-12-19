@@ -23,12 +23,13 @@ int main(int argc, const char * argv[]) {
     printf("Hello, World!\n");
     
     Venom *venom = VenomInit();
-    uint32_t loops = 20000;
+    uint32_t loops = 100;
     
     printTime();
     
     for (int i = loops; i > 0; i--) {
         VenomPut(venom, &i, 4, &i, 4, 1);
+//        VenomDebugPrint(venom);
     }
     
     printTime();
@@ -41,9 +42,9 @@ int main(int argc, const char * argv[]) {
         int res = -1;
         const void *value = VenomGet(venom, &i, 4, &valueL, &type);
         memcpy(&res, value, 4);
-//        printf("value is %d\n",res);
+        printf("value is %d\n",res);
     }
     
-    printTime();
+//    printTime();
     return 0;
 }
