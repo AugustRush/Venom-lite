@@ -11,7 +11,8 @@
 #include <string.h>
 
 #define VN_PAGE_SIZE 4096
-#define VN_SEGMENT_SIZE 5
+#define VN_LEAF_SIZE 3
+#define VN_SEGMENT_SIZE (VN_LEAF_SIZE * (VN_LEAF_SIZE + 2))
 #define VN_NEW_SEG_FACTOR 10000
 
 typedef int8_t byte;
