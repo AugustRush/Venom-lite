@@ -9,10 +9,10 @@
 #include "Venom.h"
 #include "xxhash/xxhash.h"
 #include <string.h>
+//#import <Accelerate/Accelerate.h>
 
 #define VN_PAGE_SIZE 4096
-#define VN_SEGMENT_SIZE 15
-#define VN_NEW_SEG_FACTOR 10000
+#define VN_SEGMENT_SIZE 16
 
 typedef int8_t byte;
 
@@ -263,12 +263,20 @@ VNNode * VenomNodeInsertOrReplace(Venom *venom, uint32_t hash, const void *key, 
                 }
                 
                 if (realIndex > lastIndex) {
-                    uint32_t usedCount = venom->usedCount;
-                    VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
-                    memmove(venom->nodes + realIndex + VN_SEGMENT_SIZE, venom->nodes + realIndex, (usedCount - realIndex) * VNNODE_SIZE);
-                    VenomResetSegment(venom, realIndex, VN_SEGMENT_SIZE);
-                    VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
-                    venom->count += 1;
+                    uint32_t nextLastIndex = endIndex + VN_SEGMENT_SIZE - 1;
+                    VNNode *nextSegmentLast = venom->nodes + nextLastIndex;
+                    if (nextSegmentLast->keyLength > 0) {//是一个有效的node
+                        uint32_t usedCount = venom->usedCount;
+                        VenomUpdateNodeUsedCount(venom, VN_SEGMENT_SIZE);
+                        memmove(venom->nodes + realIndex + VN_SEGMENT_SIZE, venom->nodes + realIndex, (usedCount - realIndex) * VNNODE_SIZE);
+                        VenomResetSegment(venom, realIndex, VN_SEGMENT_SIZE);
+                        VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
+                        venom->count += 1;
+                    } else {
+                        memmove(venom->nodes + realIndex + 1, venom->nodes + realIndex, (VN_SEGMENT_SIZE - 1) * VNNODE_SIZE);
+                        VenomResetNode(venom->nodes + realIndex, hash, keyLength, valueLength, referenceOffset);
+                        venom->count += 1;
+                    }
                 } else {
                     if (endIndex > lastIndex) { //full
                         uint32_t nextLastIndex = endIndex + VN_SEGMENT_SIZE - 1;
